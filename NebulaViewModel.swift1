@@ -1,0 +1,73 @@
+import Foundation
+import SwiftUI
+
+final class NebulaViewModel: ObservableObject {
+    @Published var isConnected: Bool = false
+    @Published var statusText: String = "You are offline."
+    @Published var latencyText: String = "-- ms"
+
+    private var timer: Timer?
+
+    func toggleConnection() {
+        if isConnected {
+            disconnect()
+        } else {
+            connect()
+        }
+    }
+
+    private func connect() {
+        isConnected = true
+        statusText = "Connecting to nebula…"
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.statusText = "You are drifting in the nebula."
+            self.startPinging()
+        }
+    }
+
+    private func disconnect() {
+        isConnected = false
+        statusText = "You are offline."
+        latencyText = "-- ms"
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func startPinging() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+            self.pingServer()
+        }
+    }
+
+    private func pingServer() {
+        guard isConnected else { return }
+
+        let start = Date()
+        guard let url = URL(string: "http://example.com") else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 5
+
+        let task = URLSession.shared.dataTask(with: request) { _, response, error in
+            DispatchQueue.main.async {
+                if let _ = error {
+                    self.statusText = "Error reaching nebula."
+                    self.latencyText = "-- ms"
+                    return
+                }
+                guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                    self.statusText = "Unexpected response."
+                    self.latencyText = "-- ms"
+                    return
+                }
+                let elapsed = Date().timeIntervalSince(start) * 1000
+                self.statusText = "You are drifting in the nebula."
+                self.latencyText = String(format: "%.0f ms", elapsed)
+            }
+        }
+        task.resume()
+    }
+}
